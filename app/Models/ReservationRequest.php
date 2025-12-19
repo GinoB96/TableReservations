@@ -25,12 +25,12 @@ class ReservationRequest extends Model
         'end_time',
     ];
 
-    private function user()
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    private function reservationRequestTables()
+    public function reservationRequestTables()
     {
         return $this->hasMany(ReservationRequestTable::class);
     }

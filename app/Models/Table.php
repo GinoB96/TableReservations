@@ -22,7 +22,7 @@ class Table extends Model
         'number',
     ];
 
-    private function reservationRequestTables()
+    public function reservationRequestTables()
     {
         return $this->hasMany(ReservationRequestTable::class);
     }

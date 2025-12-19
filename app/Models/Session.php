@@ -23,7 +23,7 @@ class Session extends Model
         'last_activity',
     ];
 
-    private function user()
+    public function user()
     {
         return $this->belongsTo(User::class);
     }

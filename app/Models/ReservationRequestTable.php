@@ -23,12 +23,12 @@ class ReservationRequestTable extends Model
         'table_id',
     ];
 
-    private function reservationRequest()
+    public function reservationRequest()
     {
         return $this->belongsTo(ReservationRequest::class);
     }
 
-    private function table()
+    public function table()
     {
         return $this->belongsTo(Table::class);
     }

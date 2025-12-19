@@ -46,12 +46,12 @@ class User extends Authenticatable
         ];
     }
 
-    private function sessions()
+    public function sessions()
     {
         return $this->hasMany(Session::class);
     }
 
-    private function reservationRequests()
+    public function reservationRequests()
     {
         return $this->hasMany(ReservationRequest::class);
     }
