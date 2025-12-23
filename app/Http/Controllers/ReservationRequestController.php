@@ -42,7 +42,7 @@ final class ReservationRequestController extends Controller
 
         return response()->json([
             'message' => 'Reservation request created successfully.',
-            'reservation_request_id' => $reservationRequestId,
+            'reservation_request' => $reservationRequestId,
         ], 201);
     }
 }

@@ -24,8 +24,14 @@ class ValidReservationDay implements ValidationRule
     public function validate(string $attribute, mixed $value, \Closure $fail): void
     {
         try {
-            $date = Carbon::createFromFormat('Y-m-d', $value, 'GMT-3');
+            $date = Carbon::createFromFormat('Y-m-d H:i', "{$value} {$this->hour}", 'GMT-3');
             $dayOfWeek = $date->dayOfWeek; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+            // Verificar 15 minutos de anticipación si es hoy
+            $today = Carbon::now('GMT-3');
+            if ($date->isSameDay($today) && $today->diffInMinutes($date) < 15) {
+                $fail("Las reservas para hoy deben hacerse con al menos 15 minutos de anticipación.");
+            }
 
             // Si se proporciona hora, validar horarios según el día
             if ($this->hour) {

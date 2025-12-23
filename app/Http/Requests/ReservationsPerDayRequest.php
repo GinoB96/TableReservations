@@ -20,7 +20,6 @@ class ReservationsPerDayRequest extends FormRequest
                 'date',
                 'after_or_equal:' . now('GMT-3')->format('Y-m-d'),
                 'before_or_equal:' . now('GMT-3')->addDays(7)->format('Y-m-d'),
-                new ValidReservationDay($this->input('hour')),
             ],
         ];
     }

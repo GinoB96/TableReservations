@@ -11,14 +11,22 @@ use Illuminate\Support\Facades\Cache;
 
 final class ReservationRequestService
 {
-    public function createReservationRequest(string $day, string $hour, int $numberOfPeople)
+    public function __construct(
+        private TableService $tableService,
+        private ReservationRequestTableService $reservationRequestTableService,
+    ) {
+        $this->tableService = $tableService;
+        $this->reservationRequestTableService = $reservationRequestTableService;
+    }
+
+    public function createReservationRequest(string $day, string $hour, int $numberOfPeople): ReservationRequest
     {
         $canSeat = $this->checkAvailability($day, $hour, $numberOfPeople);
-        if (!$canSeat) {
+        if (null === $canSeat) {
             throw new \Exception('No hay disponibilidad para la fecha y hora solicitadas.');
         }
 
-        $ubication = DB::table('tables')->whereIn('id', $canSeat)->first()->ubication ?? null;
+        $ubication = $this->tableService->show($canSeat[0]->id)->ubication ?? null;
 
         //Crear reserva
         $reservationRequest = ReservationRequest::create([
@@ -31,12 +39,12 @@ final class ReservationRequestService
         ]);
 
         // Asociar las mesas a la reserva
-        foreach ($canSeat as $tableId) {
-            DB::table('reservation_requests_tables')->insert([
-                'reservation_request_id' => $reservationRequest->id,
-                'table_id' => $tableId,
-            ]);
-        }
+        $this->reservationRequestTableService->store(
+            $reservationRequest->id,
+            array_map(fn ($table) => $table->id, $canSeat)
+        );
+
+        return $reservationRequest;
     }
 
     // Obtener reservas por día y ubicación, con caching
@@ -55,9 +63,11 @@ final class ReservationRequestService
     // Actualizar caché para un día específico
     private function updateCachePerDay(string $cacheKey, string $dateKey): array
     {
-        return Cache::store(config('cache.default'))->remember($cacheKey, 60, function () use ($cacheKey, $dateKey) {
-            return $this->getReservationsPerDayByUbication($cacheKey, $dateKey);
-        });
+        $reservations = $this->getReservationsPerDayByUbication($dateKey);
+
+        Cache::put($cacheKey, $reservations, 60);
+
+        return $reservations;
     }
 
     // Obtener reservas por día y ubicación desde la base de datos
@@ -109,35 +119,19 @@ final class ReservationRequestService
     }
 
     // Verificar disponibilidad para una solicitud específica
-    private function checkAvailability(string $day, string $hour, int $numberOfPeople): array|bool
+    private function checkAvailability(string $day, string $hour, int $numberOfPeople): ?array
     {
         $dayRequest = Carbon::createFromFormat('Y-m-d H:i', "{$day} {$hour}", 'GMT-3');
-        $requestStart = Carbon::createFromFormat('H:i', $hour);
-        $requestEnd = (clone $requestStart)->addHours(2); // Default 2h
-
-        // Verificar 15 minutos de anticipación si es hoy
-        $today = Carbon::now('GMT-3');
-        if ($dayRequest->isSameDay($today) && $today->diffInMinutes($dayRequest) < 15) {
-            return false;
-        }
+        $requestEnd = (clone $dayRequest)->addHours(2); // Default 2h
 
         // Obtener reservas del día agrupadas por ubicación
         $reservationsByUbication = $this->getReservationsPerDayAndUbication($day);
 
         // Obtener ubicaciones de la tabla tables en orden alfabético
-        $locations = DB::table('tables')
-            ->select('ubication')
-            ->distinct()
-            ->orderBy('ubication', 'asc')
-            ->pluck('ubication')
-            ->toArray();
+        $locations = $this->tableService->getAllUbications();
 
         // Obtener asientos por ubicación
-        $seatsByUbication = DB::table('tables')
-            ->select('ubication', 'id', 'number', 'seats')
-            ->orderBy('ubication')
-            ->orderByDesc('seats')
-            ->get();
+        $seatsByUbication = $this->tableService->getTablesOrderByUbicationsAndSeats();
 
         // Calcular capacidad máxima por ubicación (top 3 mesas)
         $maxSeatsByUbication = $seatsByUbication->groupBy('ubication')
@@ -168,17 +162,13 @@ final class ReservationRequestService
                 $resEnd = Carbon::createFromFormat('H:i:s', $reservation['end_time']);
 
                 // Verificar solapamiento
-                if ($this->hasTimeOverlap($requestStart, $requestEnd, $resStart, $resEnd)) {
+                if ($this->hasTimeOverlap($dayRequest, $requestEnd, $resStart, $resEnd)) {
                     $occupiedTables = array_merge($occupiedTables, $reservation['table_numbers']);
                 }
             }
 
             // Obtener mesas libres en esta ubicación
-            $freeTables = DB::table('tables')
-                ->where('ubication', $location)
-                ->whereNotIn('number', $occupiedTables)
-                ->orderByDesc('seats')
-                ->get();
+            $freeTables = $this->tableService->getFreeTablesByTableNumber($occupiedTables, $location);
 
             // Obtener asientos disponibles
             $canSeat = $this->getTablesForGuests($freeTables, $numberOfPeople);
@@ -189,7 +179,7 @@ final class ReservationRequestService
             }
         }
 
-        return false; // Ninguna ubicación tiene disponibilidad
+        return null; // Ninguna ubicación tiene disponibilidad
     }
 
     // Seleccionar mesas para acomodar a los invitados
@@ -221,8 +211,13 @@ final class ReservationRequestService
     /**
      * Verifica si dos rangos de tiempo se solapan.
      */
-    private function hasTimeOverlap(\DateTime $start1, \DateTime $end1, \DateTime $start2, \DateTime $end2): bool
+    private function hasTimeOverlap(Carbon $start1, Carbon $end1, Carbon $start2, Carbon $end2): bool
     {
+        $start1 = Carbon::parse('2025-12-22 18:30:00');
+        $end1   = Carbon::parse('2025-12-22 19:00:00');
+
+        $start2 = Carbon::parse('2025-12-22 17:00:00');
+        $end2   = Carbon::parse('2025-12-22 20:30:00');
         return $start1 < $end2 && $start2 < $end1;
     }
 }
