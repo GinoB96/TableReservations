@@ -55,7 +55,7 @@ final class ReservationRequestService
         $cacheKey = "reservations:day:{$dateKey}";
 
         // Intentar obtener del caché, si no existe, actualizarlo
-        return Cache::rememberForever("reservations:day:{$dateKey}", function () use ($cacheKey, $dateKey) {
+        return Cache::rememberForever($cacheKey, function () use ($cacheKey, $dateKey) {
             return $this->updateCachePerDay($cacheKey, $dateKey);
         });
     }

@@ -22,7 +22,7 @@ final class TableService
     // Mostrar detalles de una mesa por ID
     public function show(int $id): Table
     {
-        return Table::findOrFail($id)->first();
+        return Table::findOrFail($id);
     }
 
     // Obtener mesas libres por números de mesa y ubicación
